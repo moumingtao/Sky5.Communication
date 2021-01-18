@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30717.126
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sky5.Communication", "Sky5.Communication\Sky5.Communication.csproj", "{C3BB5C33-682A-420F-B16A-E2FB6AF36AA3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C3BB5C33-682A-420F-B16A-E2FB6AF36AA3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3BB5C33-682A-420F-B16A-E2FB6AF36AA3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3BB5C33-682A-420F-B16A-E2FB6AF36AA3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3BB5C33-682A-420F-B16A-E2FB6AF36AA3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {783615BD-0957-4E2A-AE8D-BCDB5668F6B3}
+	EndGlobalSection
+EndGlobal
