@@ -23,7 +23,7 @@ namespace Sky5.Communication.Test
             int num;
             protected override bool ContinueLine(EndPoint remote, string content)
             {
-                Debug.Assert(int.Parse(content) == num);
+                Debug.Assert(long.Parse(content) >= num);
                 num++;
                 if (num % 100000 == 0) Console.WriteLine(num);
                 return num < EndNum;
