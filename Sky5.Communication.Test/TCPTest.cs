@@ -19,14 +19,14 @@ namespace Sky5.Communication.Test
         }
         class EchoLineReciver : SplitStringReciver
         {
-            public const int EndNum = 10000000;
             int num;
+            public static string LastResult;
             protected override bool ContinueLine(EndPoint remote, string content)
             {
                 Debug.Assert(int.Parse(content) == num);
+                LastResult = content;
                 num++;
-                if (num % 100000 == 0) Console.WriteLine(num);
-                return num < EndNum;
+                return true;
             }
         }
         public async Task Run()
@@ -37,10 +37,17 @@ namespace Sky5.Communication.Test
             await client.ConnectAsync(IPAddress.Loopback, 12345);
             var sender = new SocketAsyncSender(client.Client);
 
-            for (int i = 0; i < EchoLineReciver.EndNum; i++)
+            int num = 0;
+            for (int i = 0; i <= 100; i++)
             {
-                sender.Send(new SendString(i.ToString()));
-                sender.Send(new SendString("\r\n"));
+                for (int j = 0; j < 1000000; j++)
+                {
+                    sender.Send(new SendString(num.ToString()));
+                    sender.Send(new SendString("\r\n"));
+                    num++;
+                }
+                Console.WriteLine(EchoLineReciver.LastResult);
+                await Task.Delay(1000);
             }
 
             Console.ReadLine();

@@ -11,8 +11,8 @@ namespace Sky5.Communication
 {
     public abstract class SendAble
     {
-        internal SendAble Next;
-        public abstract void SetBuffer(SocketAsyncSender sender, ref byte[] buffer, ref int offset, ref bool flush, out bool completed);
+        volatile internal SendAble Next;
+        public abstract void SetBuffer(SocketAsyncSender sender, byte[] buffer, ref int offset, ref bool flush, out bool completed);
     }
     public class SendString: SendAble
     {
@@ -24,13 +24,8 @@ namespace Sky5.Communication
         {
             Value = value;
         }
-        static int num = -1;
-        public override void SetBuffer(SocketAsyncSender sender, ref byte[] buffer, ref int offset, ref bool flush, out bool completed)
+        public override void SetBuffer(SocketAsyncSender sender, byte[] buffer, ref int offset, ref bool flush, out bool completed)
         {
-            if (int.TryParse(Value, out var i))
-            {
-                Debug.Assert(i == Interlocked.Increment(ref num));
-            }
             if(encoder == null)
                 encoder = sender.Encoding.GetEncoder();
             ReadOnlySpan<char> chars = Value;

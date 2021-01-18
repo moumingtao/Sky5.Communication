@@ -9,29 +9,45 @@ namespace Sky5.Communication
 {
     public struct SocketAsyncEventArgsWeakReference
     {
-        WeakReference<SocketAsyncEventArgs> bufferReference;
+        WeakReference<SocketAsyncEventArgs> weakReference;
         Func<SocketAsyncEventArgs> Create;
+        SocketAsyncEventArgs strongReference;
 
         public SocketAsyncEventArgsWeakReference(Func<SocketAsyncEventArgs> create)
         {
-            bufferReference = default;
+            weakReference = default;
+            strongReference = default;
             Create = create;
         }
-
-        public SocketAsyncEventArgs GetValue()
+        public SocketAsyncEventArgs Value
         {
-            SocketAsyncEventArgs e;
-            if (bufferReference == null)
+            get
             {
-                e = Create();
-                bufferReference = new WeakReference<SocketAsyncEventArgs>(e);
+                if (strongReference == null)
+                {
+                    lock (Create)
+                    {
+                        if (strongReference == null)
+                        {
+                            if (weakReference == null)
+                            {
+                                strongReference = Create();
+                                weakReference = new WeakReference<SocketAsyncEventArgs>(strongReference);
+                            }
+                            else if (!weakReference.TryGetTarget(out strongReference))// 被回收了，重新创建
+                            {
+                                strongReference = Create();
+                                weakReference.SetTarget(strongReference);
+                            }
+                        }
+                    }
+                }
+                return strongReference;
             }
-            else if (!bufferReference.TryGetTarget(out e))// 被回收了，重新创建
-            {
-                e = Create();
-                bufferReference.SetTarget(e);
-            }
-            return e;
+        }
+        public void Free()
+        {
+            strongReference = null;
         }
         public static SocketAsyncEventArgs CreateByBytesBuffer(int bufferSize = 1024 * 4)
         {

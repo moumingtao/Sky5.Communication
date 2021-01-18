@@ -28,15 +28,6 @@ namespace Sky5.Communication
 
         private void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
-            var nums = Encoding.GetString(e.Buffer, e.Offset, e.BytesTransferred).Split("\r\n");
-            int num = int.Parse(nums[1]);
-            for (int i = 2; i < nums.Length - 1; i++)
-            {
-                var n = int.Parse(nums[i]);
-                Debug.Assert(num + 1 == n);
-                num = n;
-            }
-
             var socket = (Socket)sender;
             if (ContinueRecv(socket, e))
             {
@@ -54,13 +45,14 @@ namespace Sky5.Communication
                 }
                 catch (Exception) { }
                 socket.Close();
+                eventArgs.Free();
             }
         }
         public abstract bool ContinueRecv(Socket socket, SocketAsyncEventArgs e);
 
         public virtual void Begin(Socket socket)
         {
-            var e = eventArgs.GetValue();
+            var e = eventArgs.Value;
             if (!socket.ReceiveAsync(e))
                 OnCompleted(socket, e);
         }

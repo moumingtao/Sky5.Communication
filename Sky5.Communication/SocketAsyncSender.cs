@@ -21,45 +21,44 @@ namespace Sky5.Communication
             this.socket = socket;
             eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
         }
-        object r;
+
         private SocketAsyncEventArgs CreateEventArgs()
         {
             var e = SocketAsyncEventArgsWeakReference.CreateByBytesBuffer();
             e.Completed += this.OnCompleted;
             offset = 0;
-            r = e;
             return e;
         }
 
         public void Send(SendAble s)
         {
             s.Next = null;
-            lock (this)
+            if (First == null)
             {
-                if (First == null)
+                lock (this)
                 {
-                    Last = s;
-                    First = s;
-                    Send(eventArgs.GetValue());
-                }
-                else
-                {
-                    Last.Next = s;
-                    Last = s;
+                    if (First == null)
+                    {
+                        Last = s;
+                        First = s;
+                        Send(eventArgs.Value);
+                        return;
+                    }
                 }
             }
+            Last.Next = s;
+            Last = s;
         }
         volatile int offset;
         public bool AutoFlush;
-        void Send(SocketAsyncEventArgs e)
+        void Send(SocketAsyncEventArgs e)// 保证不被并行调用
         {
-            var buffer = e.Buffer;
+        LOOP:
             var flush = AutoFlush;
-            First.SetBuffer(this, ref buffer, ref offset, ref flush, out bool completed);
+            var s = First;
+            s.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
             if (completed)
-                First = First.Next;
-            else
-            { }
+                First = s.Next;
             if (flush || offset == e.Buffer.Length)
             {
                 e.SetBuffer(0, offset);
@@ -67,19 +66,25 @@ namespace Sky5.Communication
                 if (!socket.SendAsync(e))
                     OnCompleted(socket, e);
             }
+            else if(First != null)
+                goto LOOP;
         }
 
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
-            lock (this)
+            if (First == null)
             {
-                if (First == null)
+                lock (this)
                 {
-                    Last = null;
-                    return;
+                    if (First == null)
+                    {
+                        Last = null;
+                        eventArgs.Free();
+                    }
                 }
-                Send(e);
             }
+            else
+                Send(e);
         }
     }
 }
