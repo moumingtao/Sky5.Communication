@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Sky5.Communication
@@ -22,9 +24,13 @@ namespace Sky5.Communication
         {
             Value = value;
         }
-
+        static int num = -1;
         public override void SetBuffer(SocketAsyncSender sender, ref byte[] buffer, ref int offset, ref bool flush, out bool completed)
         {
+            if (int.TryParse(Value, out var i))
+            {
+                Debug.Assert(i == Interlocked.Increment(ref num));
+            }
             if(encoder == null)
                 encoder = sender.Encoding.GetEncoder();
             ReadOnlySpan<char> chars = Value;

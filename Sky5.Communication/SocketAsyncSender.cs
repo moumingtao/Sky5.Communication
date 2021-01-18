@@ -21,39 +21,33 @@ namespace Sky5.Communication
             this.socket = socket;
             eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
         }
-
+        object r;
         private SocketAsyncEventArgs CreateEventArgs()
         {
             var e = SocketAsyncEventArgsWeakReference.CreateByBytesBuffer();
             e.Completed += this.OnCompleted;
             offset = 0;
+            r = e;
             return e;
         }
 
         public void Send(SendAble s)
         {
             s.Next = null;
-            if (First == null)
+            lock (this)
             {
-                bool begin;
-                lock (this)
+                if (First == null)
                 {
-                    if (First == null)
-                    {
-                        Last = s;
-                        First = s;
-                        begin = true;
-                    }
-                    else begin = false;
-                }
-                if (begin)
-                {
+                    Last = s;
+                    First = s;
                     Send(eventArgs.GetValue());
-                    return;
+                }
+                else
+                {
+                    Last.Next = s;
+                    Last = s;
                 }
             }
-            Last.Next = s;
-            Last = s;
         }
         volatile int offset;
         public bool AutoFlush;
@@ -62,8 +56,10 @@ namespace Sky5.Communication
             var buffer = e.Buffer;
             var flush = AutoFlush;
             First.SetBuffer(this, ref buffer, ref offset, ref flush, out bool completed);
-            if(completed)
+            if (completed)
                 First = First.Next;
+            else
+            { }
             if (flush || offset == e.Buffer.Length)
             {
                 e.SetBuffer(0, offset);
@@ -75,20 +71,15 @@ namespace Sky5.Communication
 
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
-            if (First == null)
+            lock (this)
             {
-                lock (this)
+                if (First == null)
                 {
-                    if (First == null)
-                    {
-                        Last = null;
-                        return;
-                    }
-                    else
-                        return;
+                    Last = null;
+                    return;
                 }
+                Send(e);
             }
-            Send(e);
         }
     }
 }

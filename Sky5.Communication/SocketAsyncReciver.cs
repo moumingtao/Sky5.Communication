@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -27,11 +28,23 @@ namespace Sky5.Communication
 
         private void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
+            var nums = Encoding.GetString(e.Buffer, e.Offset, e.BytesTransferred).Split("\r\n");
+            int num = int.Parse(nums[1]);
+            for (int i = 2; i < nums.Length - 1; i++)
+            {
+                var n = int.Parse(nums[i]);
+                Debug.Assert(num + 1 == n);
+                num = n;
+            }
+
             var socket = (Socket)sender;
             if (ContinueRecv(socket, e))
             {
-                if (!socket.ReceiveAsync(e))
-                    OnCompleted(socket, e);
+                lock (this)
+                {
+                    if (!socket.ReceiveAsync(e))
+                        OnCompleted(socket, e);
+                }
             }
             else
             {
@@ -97,7 +110,7 @@ namespace Sky5.Communication
     {
         StringBuilder sb = new StringBuilder();
         public string Spliter = "\r\n";
-        int findIndex;
+        volatile int findIndex;
         protected override bool ContinueRecv(EndPoint remote, ReadOnlySpan<char> content)
         {
             sb.Append(content);
