@@ -10,7 +10,7 @@ namespace Sky5.Communication
     public struct SocketAsyncEventArgsWeakReference
     {
         WeakReference<SocketAsyncEventArgs> weakReference;
-        Func<SocketAsyncEventArgs> Create;
+        public readonly Func<SocketAsyncEventArgs> Create;
         SocketAsyncEventArgs strongReference;
 
         public SocketAsyncEventArgsWeakReference(Func<SocketAsyncEventArgs> create)

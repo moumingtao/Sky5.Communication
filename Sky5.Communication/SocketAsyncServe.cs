@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Sky5.Communication
 {
-    public abstract class SocketAsyncServe
+    public class SocketAsyncServe
     {
         public int MaxClients = 10;
         public readonly List<Socket> ConnectedSockets = new List<Socket>();
@@ -68,11 +68,12 @@ namespace Sky5.Communication
                     var isMax = ConnectedSockets.Count == MaxClients;
                     ConnectedSockets.RemoveRange(newIndex, ConnectedSockets.Count - newIndex);
                     if (isMax) StartAccept();
+                    if (ConnectedSockets.Count == 0) return;
                 }
             }
             stateCheck.Change(1000, Timeout.Infinite);
         }
 
-        protected abstract void AcceptSocket(SocketAsyncServe serve, Socket client);
+        protected virtual void AcceptSocket(SocketAsyncServe serve, Socket client) { }
     }
 }

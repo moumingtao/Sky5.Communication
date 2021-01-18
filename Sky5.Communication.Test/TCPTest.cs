@@ -14,7 +14,7 @@ namespace Sky5.Communication.Test
         {
             protected override void AcceptSocket(SocketAsyncServe serve, Socket client)
             {
-                new EchoLineReciver().Begin(client);
+                new EchoLineReciver().BeginReceive(client);
             }
         }
         class EchoLineReciver : SplitStringReciver
@@ -32,8 +32,9 @@ namespace Sky5.Communication.Test
         public async Task Run()
         {
             var serv = new Serve();
-            var client = new TcpClient();
             serv.Start(new IPEndPoint(IPAddress.Any, 12345));
+
+            var client = new TcpClient();
             await client.ConnectAsync(IPAddress.Loopback, 12345);
             var sender = new SocketAsyncSender(client.Client);
 
@@ -42,12 +43,12 @@ namespace Sky5.Communication.Test
             {
                 for (int j = 0; j < 1000000; j++)
                 {
-                    sender.Send(new SendString(num.ToString()));
-                    sender.Send(new SendString("\r\n"));
+                    sender.Enqueue(new SendString(num.ToString()));
+                    sender.Enqueue(new SendString("\r\n"));
                     num++;
                 }
                 Console.WriteLine(EchoLineReciver.LastResult);
-                await Task.Delay(1000);
+                await Task.Delay(500);
             }
 
             Console.ReadLine();

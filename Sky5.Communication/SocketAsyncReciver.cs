@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Sky5.Communication
 {
-    public abstract class SocketAsyncReciver
+    public class SocketAsyncReciver
     {
         SocketAsyncEventArgsWeakReference eventArgs;
         public Encoding Encoding = Encoding.UTF8;
@@ -31,11 +31,8 @@ namespace Sky5.Communication
             var socket = (Socket)sender;
             if (ContinueRecv(socket, e))
             {
-                lock (this)
-                {
-                    if (!socket.ReceiveAsync(e))
-                        OnCompleted(socket, e);
-                }
+                if (!socket.ReceiveAsync(e))
+                    OnCompleted(socket, e);
             }
             else
             {
@@ -48,9 +45,9 @@ namespace Sky5.Communication
                 eventArgs.Free();
             }
         }
-        public abstract bool ContinueRecv(Socket socket, SocketAsyncEventArgs e);
+        public virtual bool ContinueRecv(Socket socket, SocketAsyncEventArgs e) => true;
 
-        public virtual void Begin(Socket socket)
+        public virtual void BeginReceive(Socket socket)
         {
             var e = eventArgs.Value;
             if (!socket.ReceiveAsync(e))
@@ -62,7 +59,7 @@ namespace Sky5.Communication
         public Decoder Decoder;
         char[] chars;
 
-        public override void Begin(Socket socket)
+        public override void BeginReceive(Socket socket)
         {
             if (chars == null)
             {
@@ -75,7 +72,7 @@ namespace Sky5.Communication
                 Decoder = Encoding.GetDecoder();
             else
                 Decoder.Reset();
-            base.Begin(socket);
+            base.BeginReceive(socket);
         }
         public override bool ContinueRecv(Socket socket, SocketAsyncEventArgs e)
         {

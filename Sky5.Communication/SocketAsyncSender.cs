@@ -11,14 +11,15 @@ namespace Sky5.Communication
 {
     public class SocketAsyncSender
     {
-        readonly Socket socket;
+        public readonly Socket Socket;
         volatile SendAble First;
         volatile SendAble Last;
+        object QueueLockObject => eventArgs.Create;
         public Encoding Encoding = Encoding.UTF8;
         SocketAsyncEventArgsWeakReference eventArgs;
         public SocketAsyncSender(Socket socket)
         {
-            this.socket = socket;
+            this.Socket = socket;
             eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
         }
 
@@ -29,25 +30,27 @@ namespace Sky5.Communication
             offset = 0;
             return e;
         }
-
-        public void Send(SendAble s)
+        /// <summary>
+        /// 将要发送的内容加入到队列，此方法是线程安全的
+        /// </summary>
+        /// <param name="s">要发送的内容</param>
+        public void Enqueue(SendAble s)
         {
             s.Next = null;
-            if (First == null)
+            lock (QueueLockObject)
             {
-                lock (this)
+                if (First == null)
                 {
-                    if (First == null)
-                    {
-                        Last = s;
-                        First = s;
-                        Send(eventArgs.Value);
-                        return;
-                    }
+                    Last = s;
+                    First = s;
+                    Send(eventArgs.Value);
+                }
+                else
+                {
+                    Last.Next = s;
+                    Last = s;
                 }
             }
-            Last.Next = s;
-            Last = s;
         }
         volatile int offset;
         public bool AutoFlush;
@@ -55,16 +58,15 @@ namespace Sky5.Communication
         {
         LOOP:
             var flush = AutoFlush;
-            var s = First;
-            s.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
+            First.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
             if (completed)
-                First = s.Next;
+                First = First.Next;
             if (flush || offset == e.Buffer.Length)
             {
                 e.SetBuffer(0, offset);
                 offset = 0;
-                if (!socket.SendAsync(e))
-                    OnCompleted(socket, e);
+                if (!Socket.SendAsync(e))
+                    OnCompleted(Socket, e);
             }
             else if(First != null)
                 goto LOOP;
@@ -72,19 +74,15 @@ namespace Sky5.Communication
 
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
-            if (First == null)
+            lock (QueueLockObject)
             {
-                lock (this)
+                if (First == null)
                 {
-                    if (First == null)
-                    {
-                        Last = null;
-                        eventArgs.Free();
-                    }
+                    Last = null;
+                    eventArgs.Free();
                 }
+                else Send(e);
             }
-            else
-                Send(e);
         }
     }
 }
