@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Sky5.Communication
 {
-    public class SocketAsyncSender
+    public class SocketAsyncSender: IBufferWriter<byte>
     {
         public readonly Socket Socket;
         volatile SendAble First;
@@ -23,9 +24,9 @@ namespace Sky5.Communication
             eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
         }
 
-        private SocketAsyncEventArgs CreateEventArgs()
+        private SocketAsyncEventArgs CreateEventArgs(SocketAsyncEventArgsWeakReference sender)
         {
-            var e = SocketAsyncEventArgsWeakReference.CreateByBytesBuffer();
+            var e = sender.CreateByBytesBuffer(1024 * 4);
             e.Completed += this.OnCompleted;
             offset = 0;
             return e;
@@ -43,6 +44,7 @@ namespace Sky5.Communication
                 {
                     Last = s;
                     First = s;
+                    eventArgs.Begin();
                     Send(eventArgs.Value);
                 }
                 else
@@ -84,5 +86,11 @@ namespace Sky5.Communication
                 else Send(e);
             }
         }
+        #region IBufferWriter
+        byte[] buffer;
+        public void Advance(int count) => offset += count;
+        public Memory<byte> GetMemory(int sizeHint) => new Memory<byte>(eventArgs.Value.Buffer, offset, eventArgs.Value.Buffer.Length - offset);
+        public Span<byte> GetSpan(int sizeHint) => new Span<byte>(eventArgs.Value.Buffer, offset, eventArgs.Value.Buffer.Length - offset);
+        #endregion
     }
 }

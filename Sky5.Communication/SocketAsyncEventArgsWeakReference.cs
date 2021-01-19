@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
@@ -7,53 +8,55 @@ using System.Threading.Tasks;
 
 namespace Sky5.Communication
 {
-    public struct SocketAsyncEventArgsWeakReference
+    public class SocketAsyncEventArgsWeakReference
     {
         WeakReference<SocketAsyncEventArgs> weakReference;
-        public readonly Func<SocketAsyncEventArgs> Create;
-        SocketAsyncEventArgs strongReference;
+        public readonly Func<SocketAsyncEventArgsWeakReference, SocketAsyncEventArgs> Create;
+        SocketAsyncEventArgs value;
+        public SocketAsyncEventArgs Value => value;
+        ArrayPool<byte> buffers = ArrayPool<byte>.Shared;
 
-        public SocketAsyncEventArgsWeakReference(Func<SocketAsyncEventArgs> create)
+        public SocketAsyncEventArgsWeakReference(Func<SocketAsyncEventArgsWeakReference, SocketAsyncEventArgs> create)
         {
-            weakReference = default;
-            strongReference = default;
             Create = create;
         }
-        public SocketAsyncEventArgs Value
+        public void Begin()
         {
-            get
+            if (value == null)
             {
-                if (strongReference == null)
+                lock (this)
                 {
-                    lock (Create)
+                    if (value == null)
                     {
-                        if (strongReference == null)
+                        if (weakReference == null)
                         {
-                            if (weakReference == null)
-                            {
-                                strongReference = Create();
-                                weakReference = new WeakReference<SocketAsyncEventArgs>(strongReference);
-                            }
-                            else if (!weakReference.TryGetTarget(out strongReference))// 被回收了，重新创建
-                            {
-                                strongReference = Create();
-                                weakReference.SetTarget(strongReference);
-                            }
+                            value = Create(this);
+                            weakReference = new WeakReference<SocketAsyncEventArgs>(value);
+                        }
+                        else if (!weakReference.TryGetTarget(out value))// 被回收了，重新创建
+                        {
+                            value = Create(this);
+                            weakReference.SetTarget(value);
                         }
                     }
                 }
-                return strongReference;
             }
         }
+
         public void Free()
         {
-            strongReference = null;
+            if (value.Buffer != null)
+                buffers.Return(value.Buffer);
+            value = null;
         }
-        public static SocketAsyncEventArgs CreateByBytesBuffer(int bufferSize = 1024 * 4)
+        public SocketAsyncEventArgs CreateByBytesBuffer(int minBufferSize)
         {
             var e = new SocketAsyncEventArgs();
-            var buffer = new byte[bufferSize];
-            e.SetBuffer(buffer, 0, buffer.Length);
+            if (minBufferSize > 0)
+            {
+                var buffer = buffers.Rent(minBufferSize);
+                e.SetBuffer(buffer, 0, buffer.Length);
+            }
             return e;
         }
     }

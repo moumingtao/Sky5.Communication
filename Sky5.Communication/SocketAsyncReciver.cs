@@ -19,9 +19,9 @@ namespace Sky5.Communication
             this.BufferSize = bufferSize;
             eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
         }
-        private SocketAsyncEventArgs CreateEventArgs()
+        private SocketAsyncEventArgs CreateEventArgs(SocketAsyncEventArgsWeakReference sender)
         {
-            var e = SocketAsyncEventArgsWeakReference.CreateByBytesBuffer();
+            var e = sender.CreateByBytesBuffer(BufferSize);
             e.Completed += this.OnCompleted;
             return e;
         }
@@ -49,6 +49,7 @@ namespace Sky5.Communication
 
         public virtual void BeginReceive(Socket socket)
         {
+            eventArgs.Begin();
             var e = eventArgs.Value;
             if (!socket.ReceiveAsync(e))
                 OnCompleted(socket, e);
