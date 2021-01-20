@@ -12,7 +12,7 @@ namespace Sky5.Communication
     {
         WeakReference<SocketAsyncEventArgs> weakReference;
         public readonly Func<SocketAsyncEventArgsWeakReference, SocketAsyncEventArgs> Create;
-        SocketAsyncEventArgs value;
+        volatile SocketAsyncEventArgs value;
         public SocketAsyncEventArgs Value => value;
         ArrayPool<byte> buffers = ArrayPool<byte>.Shared;
 
@@ -24,21 +24,15 @@ namespace Sky5.Communication
         {
             if (value == null)
             {
-                lock (this)
+                if (weakReference == null)
                 {
-                    if (value == null)
-                    {
-                        if (weakReference == null)
-                        {
-                            value = Create(this);
-                            weakReference = new WeakReference<SocketAsyncEventArgs>(value);
-                        }
-                        else if (!weakReference.TryGetTarget(out value))// 被回收了，重新创建
-                        {
-                            value = Create(this);
-                            weakReference.SetTarget(value);
-                        }
-                    }
+                    value = Create(this);
+                    weakReference = new WeakReference<SocketAsyncEventArgs>(value);
+                }
+                else if (!weakReference.TryGetTarget(out value))// 被回收了，重新创建
+                {
+                    value = Create(this);
+                    weakReference.SetTarget(value);
                 }
             }
         }

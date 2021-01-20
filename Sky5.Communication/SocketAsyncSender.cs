@@ -13,23 +13,16 @@ namespace Sky5.Communication
     public class SocketAsyncSender: IBufferWriter<byte>
     {
         public readonly Socket Socket;
-        volatile SendAble EmptyNode = new EmptySendAble();
         volatile SendAble First;
         volatile SendAble Last;
-        class EmptySendAble : SendAble
-        {
-            public override void SetBuffer(SocketAsyncSender sender, byte[] buffer, ref int offset, ref bool flush, out bool completed)
-            {
-                flush = true;
-                completed = true;
-            }
-        }
         object QueueLockObject => eventArgs.Create;
         public Encoding Encoding = Encoding.UTF8;
-        SocketAsyncEventArgsWeakReference eventArgs;
+        volatile SocketAsyncEventArgsWeakReference eventArgs;
         public SocketAsyncSender(Socket socket)
         {
             this.Socket = socket;
+            if (socket.SocketType != SocketType.Stream)
+                AutoFlush = true;
             eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
         }
 
@@ -47,79 +40,64 @@ namespace Sky5.Communication
         public void Enqueue(SendAble s)
         {
             s.Next = null;
-            while (true)
+            lock (QueueLockObject)
             {
-                var last = Interlocked.CompareExchange(ref Last, s, null);// 只有消费者线程可以设置Last为null
-                if (last == null)
-                {
-                    First = s;
-                    while (eventArgs.Value != null)
-                        Thread.Sleep(0);
-                    eventArgs.Begin();
-                    LoopSend(false, s, eventArgs.Value);
-                    break;
-                }
-
-                if (Interlocked.CompareExchange(ref last.Next, s, null) == null)
+                if (First == null)
                 {
                     Last = s;
-                    break;
+                    First = s;
+                    eventArgs.Begin();
+                    ThreadPool.QueueUserWorkItem(state => Send(s, eventArgs.Value));
+                }
+                else
+                {
+                    Last.Next = s;
+                    Last = s;
                 }
             }
         }
         volatile int offset;
         public bool AutoFlush;
-        void LoopSend(bool sync, SendAble first, SocketAsyncEventArgs e)// 保证不被并行调用
+
+        void Send(SendAble first, SocketAsyncEventArgs e)// 保证不被并行调用
         {
-            while (true)
+            do
             {
                 var flush = AutoFlush;
                 first.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
                 if (completed)
                 {
-                    First = first = first.Next;
-                    if (first == null) flush = true;
+                    lock (QueueLockObject)
+                        First = first = first.Next;
+                    if (first == null)
+                        flush = true;
                 }
                 if (flush || offset == e.Buffer.Length)
                 {
                     e.SetBuffer(0, offset);
                     offset = 0;
                     if (!Socket.SendAsync(e))
-                    {
-                        if (sync)
-                            OnCompleted(Socket, e);
-                        else
-                            ThreadPool.QueueUserWorkItem(state => OnCompleted(Socket, e));
-                    }
-                    else
-                    { }
-                    break;
+                        OnCompleted(Socket, e);
+                    return;
                 }
-            }
-
+            } while (first != null);
         }
-
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
-            var first = First;
-            if (first == null)
+            SendAble first;
+            lock (QueueLockObject)
             {
-                while (true)
+                first = First;
+                if (first == null)
                 {
-                    var last = this.Last;
-                    first = First;
-                    if (first == null)
-                    {
-                        if (Interlocked.CompareExchange(ref this.Last, null, last) == last)
-                        {
-                            eventArgs.Free();
-                            return;
-                        }
-                    }
-                    else break;
+                    Last = null;
+                    eventArgs.Free();
                 }
             }
-            LoopSend(true, first, e);
+            if (first != null)
+            {
+                Send(first, e);
+            }
         }
         #region IBufferWriter
         byte[] buffer;
