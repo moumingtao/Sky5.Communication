@@ -65,20 +65,22 @@ namespace Sky5.Communication
             {
                 var flush = AutoFlush;
                 first.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
-                if (completed)
+                lock (QueueLockObject)
                 {
-                    lock (QueueLockObject)
+                    if (completed)
+                    {
                         First = first = first.Next;
-                    if (first == null)
-                        flush = true;
-                }
-                if (flush || offset == e.Buffer.Length)
-                {
-                    e.SetBuffer(0, offset);
-                    offset = 0;
-                    if (!Socket.SendAsync(e))
-                        OnCompleted(Socket, e);
-                    return;
+                        if (first == null)
+                            flush = true;
+                    }
+                    if (flush || offset == e.Buffer.Length)
+                    {
+                        e.SetBuffer(0, offset);
+                        offset = 0;
+                        if (!Socket.SendAsync(e))
+                            OnCompleted(Socket, e);
+                        return;
+                    }
                 }
             } while (first != null);
         }
