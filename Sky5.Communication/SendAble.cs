@@ -18,12 +18,13 @@ namespace Sky5.Communication
     {
         public readonly string Value;
         Encoder encoder;
-        int charIndex;
+        volatile int charIndex;
 
         public SendString(string value)
         {
             Value = value;
         }
+        //volatile static int num;
         public override void SetBuffer(SocketAsyncSender sender, byte[] buffer, ref int offset, ref bool flush, out bool completed)
         {
             if(encoder == null)
@@ -32,6 +33,7 @@ namespace Sky5.Communication
             chars = chars.Slice(charIndex, Value.Length - charIndex);
             var bytes = new Span<byte>(buffer, offset, buffer.Length - offset);
             encoder.Convert(chars, bytes, Value.Length == charIndex, out int charsUsed, out int bytesUsed, out completed);
+            //if (completed && int.TryParse(Value, out var n)) Debug.Assert(n == num++);
             charIndex += charsUsed;
             offset += bytesUsed;
             if (buffer.Length - offset < sender.Encoding.GetMaxByteCount(1))

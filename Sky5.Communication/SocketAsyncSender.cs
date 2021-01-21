@@ -13,11 +13,11 @@ namespace Sky5.Communication
     public class SocketAsyncSender: IBufferWriter<byte>
     {
         public readonly Socket Socket;
-        volatile SendAble First;
-        volatile SendAble Last;
+        SendAble First;
+        SendAble Last;
         object QueueLockObject => eventArgs.Create;
         public Encoding Encoding = Encoding.UTF8;
-        volatile SocketAsyncEventArgsWeakReference eventArgs;
+        SocketAsyncEventArgsWeakReference eventArgs;
         public SocketAsyncSender(Socket socket)
         {
             this.Socket = socket;
@@ -33,6 +33,7 @@ namespace Sky5.Communication
             offset = 0;
             return e;
         }
+
         /// <summary>
         /// 将要发送的内容加入到队列，此方法是线程安全的
         /// </summary>
@@ -40,49 +41,59 @@ namespace Sky5.Communication
         public void Enqueue(SendAble s)
         {
             s.Next = null;
+            bool begin;
             lock (QueueLockObject)
             {
-                if (First == null)
+                if (Last == null)
                 {
                     Last = s;
                     First = s;
                     eventArgs.Begin();
-                    ThreadPool.QueueUserWorkItem(state => Send(s, eventArgs.Value));
+                    begin = true;
+                }
+                else if (First == null)
+                {
+                    Last = s;
+                    First = s;
+                    begin = false;
                 }
                 else
                 {
                     Last.Next = s;
                     Last = s;
+                    begin = false;
                 }
             }
+            if(begin)
+                ThreadPool.QueueUserWorkItem(state => Send(s, eventArgs.Value));
         }
-        volatile int offset;
+        int offset;
         public bool AutoFlush;
 
+        #region 这两个函数轮流交替执行，且不会被并行执行，(Send→OnCompleted)循环
         void Send(SendAble first, SocketAsyncEventArgs e)// 保证不被并行调用
         {
+            #region 准备要发送的数据，写入缓冲区
             do
             {
                 var flush = AutoFlush;
                 first.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
-                lock (QueueLockObject)
+                if (completed)
                 {
-                    if (completed)
-                    {
-                        First = first = first.Next;
-                        if (first == null)
-                            flush = true;
-                    }
-                    if (flush || offset == e.Buffer.Length)
-                    {
-                        e.SetBuffer(0, offset);
-                        offset = 0;
-                        if (!Socket.SendAsync(e))
-                            OnCompleted(Socket, e);
-                        return;
-                    }
+                    First = first = first.Next;
+                    if (first == null) break;
                 }
+                if (flush || offset == e.Buffer.Length)
+                    break;
             } while (first != null);
+            #endregion
+
+            #region 执行发送
+            e.SetBuffer(0, offset);
+            offset = 0;
+            if (!Socket.SendAsync(e))
+                OnCompleted(Socket, e);
+            #endregion
         }
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
@@ -92,15 +103,15 @@ namespace Sky5.Communication
                 first = First;
                 if (first == null)
                 {
-                    Last = null;
+                    Last = null;// 以此作为数据推送停止的依据
                     eventArgs.Free();
                 }
             }
             if (first != null)
-            {
                 Send(first, e);
-            }
         }
+        #endregion
+
         #region IBufferWriter
         byte[] buffer;
         public void Advance(int count) => offset += count;

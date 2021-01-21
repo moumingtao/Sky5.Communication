@@ -96,9 +96,8 @@ namespace Sky5.Communication
                         return false;
                 }
                 byteIndex += bytesUsed;
-                if (completed) break;
+                if (completed) return true;
             }
-            return true;
         }
 
         protected abstract bool ContinueRecv(EndPoint remote, ReadOnlySpan<char> content);
