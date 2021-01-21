@@ -14,7 +14,7 @@ namespace Sky5.Communication.Test
         {
             protected override void AcceptSocket(SocketAsyncServe serve, Socket client)
             {
-                new RecvBlock { BufferSize = 1024 * 1024 }.BeginReceive(client);
+                new RecvBlock { BufferSize = 8 }.BeginReceive(client);
             }
         }
         class RecvBlock : SocketAsyncReciver
@@ -42,7 +42,7 @@ namespace Sky5.Communication.Test
 
             var client = new TcpClient();
             await client.ConnectAsync(IPAddress.Loopback, 12345);
-            var sender = new SocketAsyncSender(client.Client) { BufferSize = 1024 * 8 };
+            var sender = new SocketAsyncSender(client.Client) { BufferSize = 8 };
             sender.Enqueue(new SendBlock());
             long last = 0;
             while (true)

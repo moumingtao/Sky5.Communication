@@ -7,7 +7,7 @@ namespace Sky5.Communication.Test
     {
         static async Task Main(string[] args)
         {
-            await new SendMsgTest().Run();
+            await new BigData().Run();
         }
     }
 }
