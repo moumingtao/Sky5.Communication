@@ -70,6 +70,7 @@ namespace Sky5.Communication
         public bool AutoFlush;
         void Send(SendAble first, SocketAsyncEventArgs e)// 保证不被并行调用
         {
+        LOOP:
             #region 准备要发送的数据，写入缓冲区
             do
             {
@@ -85,13 +86,17 @@ namespace Sky5.Communication
             #region 执行发送
             e.SetBuffer(0, offset);
             offset = 0;
-            if (!Socket.SendAsync(e))// 增加缓冲区大小可以解决StackOverflowException
-                OnCompleted(Socket, e);
+            if (!Socket.SendAsync(e) && ContinueSend(out first))
+                goto LOOP;// 避免递归造成StackOverflowException
             #endregion
         }
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
-            SendAble first;
+            if (ContinueSend(out var first))
+                Send(first, e);
+        }
+        bool ContinueSend(out SendAble first)
+        {
             lock (EventArgs)
             {
                 first = First;
@@ -101,10 +106,10 @@ namespace Sky5.Communication
                     var buffer = EventArgs.Buffer;
                     EventArgs.SetBuffer(null);
                     BufferPool.Return(buffer);
+                    return false;
                 }
             }
-            if (first != null)
-                Send(first, e);
+            return true;
         }
         #endregion
 

@@ -57,7 +57,7 @@ namespace Sky5.Communication.Test
                     num++;
                 }
                 Console.WriteLine(EchoLineReciver.LastResult);
-                await Task.Delay(80);
+                await Task.Delay(50);
             }
 
             Console.ReadLine();

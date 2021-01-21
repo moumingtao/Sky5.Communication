@@ -22,10 +22,11 @@ namespace Sky5.Communication
         private void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
             var socket = (Socket)sender;
+        LOOP:
             if (ContinueRecv(socket, e))
             {
                 if (!socket.ReceiveAsync(e))
-                    OnCompleted(socket, e);
+                    goto LOOP;// 避免递归造成StackOverflowException
             }
             else
             {
