@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -11,20 +12,12 @@ namespace Sky5.Communication
 {
     public abstract class SocketAsyncReciver
     {
-        SocketAsyncEventArgsWeakReference eventArgs;
         public Encoding Encoding = Encoding.UTF8;
-        public int BufferSize;
-        public SocketAsyncReciver(int bufferSize = 1024 * 4)
-        {
-            this.BufferSize = bufferSize;
-            eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
-        }
-        private SocketAsyncEventArgs CreateEventArgs(SocketAsyncEventArgsWeakReference sender)
-        {
-            var e = sender.CreateByBytesBuffer(BufferSize);
-            e.Completed += this.OnCompleted;
-            return e;
-        }
+        #region SocketAsyncEventArgs
+        SocketAsyncEventArgs EventArgs;
+        public int BufferSize = 1024 * 4;
+        public ArrayPool<byte> BufferPool = ArrayPool<byte>.Shared;
+        #endregion
 
         private void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
@@ -42,17 +35,24 @@ namespace Sky5.Communication
                 }
                 catch (Exception) { }
                 socket.Close();
-                eventArgs.Free();
+                var buffer = EventArgs.Buffer;
+                EventArgs.SetBuffer(null);
+                BufferPool.Return(buffer);
             }
         }
         public abstract bool ContinueRecv(Socket socket, SocketAsyncEventArgs e);
 
         public virtual void BeginReceive(Socket socket)
         {
-            eventArgs.Begin();
-            var e = eventArgs.Value;
-            if (!socket.ReceiveAsync(e))
-                OnCompleted(socket, e);
+            if (EventArgs == null)
+            {
+                EventArgs = new SocketAsyncEventArgs();
+                EventArgs.Completed += OnCompleted;
+            }
+            var buffer = BufferPool.Rent(BufferSize);
+            EventArgs.SetBuffer(buffer, 0, buffer.Length);
+            if (!socket.ReceiveAsync(EventArgs))
+                OnCompleted(socket, EventArgs);
         }
     }
     public abstract class StringReciver: SocketAsyncReciver

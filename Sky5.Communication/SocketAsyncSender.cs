@@ -15,23 +15,20 @@ namespace Sky5.Communication
         public readonly Socket Socket;
         SendAble First;
         SendAble Last;
-        object QueueLockObject => eventArgs.Create;
         public Encoding Encoding = Encoding.UTF8;
-        SocketAsyncEventArgsWeakReference eventArgs;
+
+        #region SocketAsyncEventArgs
+        SocketAsyncEventArgs EventArgs = new SocketAsyncEventArgs();
+        public int BufferSize = 1024 * 4;
+        public ArrayPool<byte> BufferPool = ArrayPool<byte>.Shared;
+        #endregion
+
         public SocketAsyncSender(Socket socket)
         {
             this.Socket = socket;
             if (socket.SocketType != SocketType.Stream)
                 AutoFlush = true;
-            eventArgs = new SocketAsyncEventArgsWeakReference(CreateEventArgs);
-        }
-
-        private SocketAsyncEventArgs CreateEventArgs(SocketAsyncEventArgsWeakReference sender)
-        {
-            var e = sender.CreateByBytesBuffer(1024 * 4);
-            e.Completed += this.OnCompleted;
-            offset = 0;
-            return e;
+            EventArgs.Completed += this.OnCompleted;
         }
 
         /// <summary>
@@ -42,13 +39,14 @@ namespace Sky5.Communication
         {
             s.Next = null;
             bool begin;
-            lock (QueueLockObject)
+            lock (EventArgs)
             {
                 if (Last == null)
                 {
                     Last = s;
                     First = s;
-                    eventArgs.Begin();
+                    var buffer = BufferPool.Rent(BufferSize);
+                    EventArgs.SetBuffer(buffer, 0, buffer.Length);
                     begin = true;
                 }
                 else if (First == null)
@@ -65,12 +63,11 @@ namespace Sky5.Communication
                 }
             }
             if(begin)
-                ThreadPool.QueueUserWorkItem(state => Send(s, eventArgs.Value));
+                ThreadPool.QueueUserWorkItem(state => Send(s, EventArgs));
         }
+        #region 这两个函数轮流交替执行，且不会被并行执行，(Send→OnCompleted)循环
         int offset;
         public bool AutoFlush;
-
-        #region 这两个函数轮流交替执行，且不会被并行执行，(Send→OnCompleted)循环
         void Send(SendAble first, SocketAsyncEventArgs e)// 保证不被并行调用
         {
             #region 准备要发送的数据，写入缓冲区
@@ -79,11 +76,8 @@ namespace Sky5.Communication
                 var flush = AutoFlush;
                 first.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
                 if (completed)
-                {
                     First = first = first.Next;
-                    if (first == null) break;
-                }
-                if (flush || offset == e.Buffer.Length)
+                if (first == null || (flush && offset > 0) || offset == e.Buffer.Length)
                     break;
             } while (first != null);
             #endregion
@@ -91,20 +85,22 @@ namespace Sky5.Communication
             #region 执行发送
             e.SetBuffer(0, offset);
             offset = 0;
-            if (!Socket.SendAsync(e))
+            if (!Socket.SendAsync(e))// 增加缓冲区大小可以解决StackOverflowException
                 OnCompleted(Socket, e);
             #endregion
         }
         void OnCompleted(object sender, SocketAsyncEventArgs e)
         {
             SendAble first;
-            lock (QueueLockObject)
+            lock (EventArgs)
             {
                 first = First;
                 if (first == null)
                 {
                     Last = null;// 以此作为数据推送停止的依据
-                    eventArgs.Free();
+                    var buffer = EventArgs.Buffer;
+                    EventArgs.SetBuffer(null);
+                    BufferPool.Return(buffer);
                 }
             }
             if (first != null)
@@ -115,8 +111,8 @@ namespace Sky5.Communication
         #region IBufferWriter
         byte[] buffer;
         public void Advance(int count) => offset += count;
-        public Memory<byte> GetMemory(int sizeHint) => new Memory<byte>(eventArgs.Value.Buffer, offset, eventArgs.Value.Buffer.Length - offset);
-        public Span<byte> GetSpan(int sizeHint) => new Span<byte>(eventArgs.Value.Buffer, offset, eventArgs.Value.Buffer.Length - offset);
+        public Memory<byte> GetMemory(int sizeHint) => new Memory<byte>(EventArgs.Buffer, offset, EventArgs.Buffer.Length - offset);
+        public Span<byte> GetSpan(int sizeHint) => new Span<byte>(EventArgs.Buffer, offset, EventArgs.Buffer.Length - offset);
         #endregion
     }
 }

@@ -16,7 +16,7 @@ namespace Sky5.Communication.Test
         {
             protected override void AcceptSocket(SocketAsyncServe serve, Socket client)
             {
-                new EchoLineReciver().BeginReceive(client);
+                new EchoLineReciver { BufferSize = 1024 * 8 }.BeginReceive(client);
             }
         }
         class EchoLineReciver : MsgPackReciver
@@ -34,6 +34,7 @@ namespace Sky5.Communication.Test
         [MessagePackObject]
         public class SendNumber : SendMsgPack
         {
+            protected override int BufferSize => 50;
             [Key(1)]
             public int Number { get; set; }
         }
@@ -45,18 +46,18 @@ namespace Sky5.Communication.Test
 
             var client = new TcpClient();
             await client.ConnectAsync(IPAddress.Loopback, 12345);
-            var sender = new SocketAsyncSender(client.Client);
+            var sender = new SocketAsyncSender(client.Client) { BufferSize = 1024 * 8 };
 
             int num = 0;
-            for (int i = 0; i <= 100; i++)
+            for (int i = 0; i <= 1000; i++)
             {
-                for (int j = 0; j < 1000000; j++)
+                for (int j = 0; j < 100000; j++)
                 {
                     sender.Enqueue(new SendNumber() { Number = num });
                     num++;
                 }
                 Console.WriteLine(EchoLineReciver.LastResult);
-                await Task.Delay(500);
+                await Task.Delay(80);
             }
 
             Console.ReadLine();
