@@ -13,8 +13,8 @@ namespace Sky5.Communication
     public class SocketAsyncSender: IBufferWriter<byte>
     {
         public readonly Socket Socket;
-        SendAble First;
-        SendAble Last;
+        volatile SendAble First;
+        volatile SendAble Last;
         public Encoding Encoding = Encoding.UTF8;
 
         #region SocketAsyncEventArgs
@@ -104,7 +104,7 @@ namespace Sky5.Communication
                 {
                     Last = null;// 以此作为数据推送停止的依据
                     var buffer = EventArgs.Buffer;
-                    EventArgs.SetBuffer(null);
+                    EventArgs.SetBuffer(null, 0, 0);
                     BufferPool.Return(buffer);
                     return false;
                 }
