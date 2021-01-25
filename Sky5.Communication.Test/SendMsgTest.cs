@@ -14,9 +14,11 @@ namespace Sky5.Communication.Test
     {
         class Serve : SocketAsyncServe
         {
+            internal MessageHeader header;
+
             protected override void AcceptSocket(SocketAsyncServe serve, Socket client)
             {
-                new EchoLineReciver { BufferSize = 1024 * 8 }.BeginReceive(client);
+                new EchoLineReciver { BufferSize = 1024 * 8, Header = header }.BeginReceive(client);
             }
         }
         class EchoLineReciver : MsgPackReciver
@@ -40,13 +42,14 @@ namespace Sky5.Communication.Test
         }
         public async Task Run()
         {
-            MessageHeader.RegisterType(3, typeof(SendNumber));
-            var serv = new Serve();
+            var header = new MessageHeader();
+            header.RegisterType(3, typeof(SendNumber));
+            var serv = new Serve { header = header };
             serv.Start(new IPEndPoint(IPAddress.Any, 12345));
 
             var client = new TcpClient();
             await client.ConnectAsync(IPAddress.Loopback, 12345);
-            var sender = new SocketAsyncSender(client.Client) { BufferSize = 1024 * 8 };
+            var sender = new SocketAsyncSender(client.Client) { BufferSize = 1024 * 8, Header = header };
 
             int num = 0;
             for (int i = 0; i <= 1000; i++)

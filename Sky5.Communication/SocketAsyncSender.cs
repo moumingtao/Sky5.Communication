@@ -16,6 +16,7 @@ namespace Sky5.Communication
         volatile SendAble First;
         volatile SendAble Last;
         public Encoding Encoding = Encoding.UTF8;
+        public MessageHeader Header;
 
         #region SocketAsyncEventArgs
         SocketAsyncEventArgs EventArgs = new SocketAsyncEventArgs();
@@ -77,11 +78,13 @@ namespace Sky5.Communication
                 var flush = AutoFlush;
                 first.SetBuffer(this, e.Buffer, ref offset, ref flush, out bool completed);
                 if (completed)
-                    First = first = first.Next;
+                    first = first.Next;
                 if (first == null || (flush && offset > 0) || offset == e.Buffer.Length)
                     break;
             } while (first != null);
             #endregion
+
+            First = first;
 
             #region 执行发送
             e.SetBuffer(0, offset);

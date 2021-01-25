@@ -43,11 +43,11 @@ namespace Sky5.Communication
 #endif
 
 #if TestSendNum
-            num++;
             if (num % 2 == 0)
-                Debug.Assert(Value == "\r\n");
-            else
                 Debug.Assert(int.Parse(Value) == num / 2);
+            else
+                Debug.Assert(Value == "\r\n");
+            if (completed) num++;
 #endif
             if (buffer.Length - offset < sender.Encoding.GetMaxByteCount(1))
                 flush = true;

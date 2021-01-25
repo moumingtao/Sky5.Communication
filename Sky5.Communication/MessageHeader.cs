@@ -6,9 +6,8 @@ using System.Threading.Tasks;
 
 namespace Sky5.Communication
 {
-    public static class MessageHeader
+    public class MessageHeader
     {
-        public const int ByteSize = 6;
         public const int NumSize = 3;
         public static void Write(byte[] buffer, ref int offset, int value)
         {
@@ -18,13 +17,24 @@ namespace Sky5.Communication
         }
         public static int ReadInt(byte[] buffer, ref int offset)
             => buffer[offset++] | (buffer[offset++] << 8) | (buffer[offset++] << 16);
-
-        public static Dictionary<int, Type> CodeToType = new Dictionary<int, Type>();
-        public static Dictionary<Type, int> TypeToCode = new Dictionary<Type, int>();
-        public static void RegisterType(int code, Type type)
+        public bool Recv(ref ushort field)
         {
-            CodeToType.Add(code, type);
-            TypeToCode.Add(type, code);
+            if (field < 0)
+            {
+                if (len < MessageHeader.NumSize)
+                {
+                    EnsureBuffer(MessageHeader.NumSize);
+                    return true;
+                }
+                else
+                {
+                    field = MessageHeader.ReadInt(e.Buffer, ref begin);
+                    len -= MessageHeader.NumSize;
+                    return false;
+                }
+            }
+            return false;
         }
+
     }
 }

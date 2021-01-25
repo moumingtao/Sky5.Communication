@@ -22,10 +22,10 @@ namespace Sky5.Communication
             else
             {
                 int begin = offset;
-                offset += MessageHeader.ByteSize;
+                offset += MessageHeader.NumSize * 2;
                 MessagePackSerializer.Serialize(this.GetType(), sender, this);
-                MessageHeader.Write(buffer, ref begin, offset - begin - MessageHeader.ByteSize);
-                MessageHeader.Write(buffer, ref begin, MessageHeader.TypeToCode[this.GetType()]);
+                MessageHeader.Write(buffer, ref begin, offset - begin - MessageHeader.NumSize * 2);
+                MessageHeader.Write(buffer, ref begin, sender.Header.GetCode(this.GetType()));
                 completed = true;
             }
         }
@@ -35,6 +35,8 @@ namespace Sky5.Communication
         int begin;
         int msgLen = -1;
         int typeCode = -1;
+        public MessageHeader Header;
+
         public override bool ContinueRecv(Socket socket, SocketAsyncEventArgs e)
         {
             int len = e.Offset + e.BytesTransferred - begin;// 未处理的字节数，紧跟着begin
@@ -79,7 +81,7 @@ namespace Sky5.Communication
                 else
                 {
                     var bytes = new ReadOnlyMemory<byte>(e.Buffer, begin, msgLen);
-                    var msg = MessagePackSerializer.Deserialize(MessageHeader.CodeToType[typeCode], bytes);
+                    var msg = MessagePackSerializer.Deserialize(Header.GetType(typeCode), bytes);
                     OnRecv(msg);
                     len -= msgLen;
                     begin += msgLen;
